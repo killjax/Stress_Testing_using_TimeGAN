@@ -1,11 +1,12 @@
 numpy
 tensorflow
 tqdm
-argparse
 pandas
 scikit-learn
 matplotlib
 protobuf
 ipykernel
 yfinance
+seaborn
+
 seaborn

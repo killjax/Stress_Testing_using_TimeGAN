@@ -6,74 +6,53 @@ Neural Information Processing Systems (NeurIPS), 2019.
 
 Paper link: https://papers.nips.cc/paper/8789-time-series-generative-adversarial-networks
 
-Last updated Date: April 24th 2020
-Code author: Jinsung Yoon (jsyoon0823@gmail.com)
-
 -----------------------------
 
 visualization_metrics.py
 
-Note: Use PCA or tSNE for generated and original data visualization
+Note: Use PCA or tSNE for generated and original data visualization.
 """
 
-# Necessary packages
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 
-def visualization(ori_data, generated_data, analysis):
+def visualization(ori_data, generated_data, analysis, save_path=None, seed=42):
     """Using PCA or tSNE for generated and original data visualization.
 
     Args:
-      - ori_data: original data
-      - generated_data: generated synthetic data
-      - analysis: tsne or pca
+      - ori_data: original data (shape: [N, seq_len, dim])
+      - generated_data: generated synthetic data (shape: [M, seq_len, dim])
+      - analysis: 'tsne' or 'pca'
+      - save_path: optional file path to save the figure
+      - seed: random seed for reproducible subsampling and t-SNE
     """
-    # Analysis sample size (for faster computation)
-    anal_sample_no = min([1000, len(ori_data)])
-    idx = np.random.permutation(len(ori_data))[:anal_sample_no]
+    ori_arr = np.asarray(ori_data, dtype=np.float32)
+    gen_arr = np.asarray(generated_data, dtype=np.float32)
 
-    # Data preprocessing
-    ori_data = np.asarray(ori_data)
-    generated_data = np.asarray(generated_data)
+    anal_sample_no = min([1000, len(ori_arr), len(gen_arr)])
+    rng = np.random.default_rng(seed)
 
-    ori_data = ori_data[idx]
-    generated_data = generated_data[idx]
+    idx_ori = rng.permutation(len(ori_arr))[:anal_sample_no]
+    idx_gen = rng.permutation(len(gen_arr))[:anal_sample_no]
 
-    no, seq_len, dim = ori_data.shape
+    ori_sub = ori_arr[idx_ori]
+    gen_sub = gen_arr[idx_gen]
 
-    for i in range(anal_sample_no):
-        if i == 0:
-            prep_data = np.reshape(np.mean(ori_data[0, :, :], 1), [1, seq_len])
-            prep_data_hat = np.reshape(
-                np.mean(generated_data[0, :, :], 1), [1, seq_len]
-            )
-        else:
-            prep_data = np.concatenate(
-                (prep_data, np.reshape(np.mean(ori_data[i, :, :], 1), [1, seq_len]))
-            )
-            prep_data_hat = np.concatenate(
-                (
-                    prep_data_hat,
-                    np.reshape(np.mean(generated_data[i, :, :], 1), [1, seq_len]),
-                )
-            )
+    # Vectorized mean across feature dimension (axis=2) -> shape (anal_sample_no, seq_len)
+    prep_data = np.mean(ori_sub, axis=2)
+    prep_data_hat = np.mean(gen_sub, axis=2)
 
-    # Visualization parameter
-    colors = ["red" for i in range(anal_sample_no)] + [
-        "blue" for i in range(anal_sample_no)
-    ]
+    colors = ["red"] * anal_sample_no + ["blue"] * anal_sample_no
 
     if analysis == "pca":
-        # PCA Analysis
-        pca = PCA(n_components=2)
+        pca = PCA(n_components=2, random_state=seed)
         pca.fit(prep_data)
         pca_results = pca.transform(prep_data)
         pca_hat_results = pca.transform(prep_data_hat)
 
-        # Plotting
         f, ax = plt.subplots(1)
         plt.scatter(
             pca_results[:, 0],
@@ -93,21 +72,25 @@ def visualization(ori_data, generated_data, analysis):
         ax.legend()
         plt.title("PCA plot")
         plt.xlabel("x-pca")
-        plt.ylabel("y_pca")
+        plt.ylabel("y-pca")
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight", dpi=150)
         plt.show()
 
     elif analysis == "tsne":
-
-        # Do t-SNE Analysis together
         prep_data_final = np.concatenate((prep_data, prep_data_hat), axis=0)
+        eff_perplexity = min(40, max(5, len(prep_data_final) // 3 - 1))
 
-        # TSNE anlaysis
-        tsne = TSNE(n_components=2, verbose=1, perplexity=40, max_iter=300)
+        tsne = TSNE(
+            n_components=2,
+            verbose=0,
+            perplexity=eff_perplexity,
+            max_iter=1000,
+            random_state=seed,
+        )
         tsne_results = tsne.fit_transform(prep_data_final)
 
-        # Plotting
         f, ax = plt.subplots(1)
-
         plt.scatter(
             tsne_results[:anal_sample_no, 0],
             tsne_results[:anal_sample_no, 1],
@@ -124,8 +107,9 @@ def visualization(ori_data, generated_data, analysis):
         )
 
         ax.legend()
-
         plt.title("t-SNE plot")
         plt.xlabel("x-tsne")
-        plt.ylabel("y_tsne")
+        plt.ylabel("y-tsne")
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight", dpi=150)
         plt.show()
